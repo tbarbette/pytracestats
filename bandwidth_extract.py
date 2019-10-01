@@ -12,7 +12,13 @@ def main():
     parser.add_argument("--interval",type=float,default=0.1,help="Interval to compute the bandwidth upon. Defaults to 0.1 seconds.")
     parser.add_argument("--stop-after",dest='stop',type=float,default=None,help="Stop after a certain amount of seconds.")
     parser.add_argument("--output",type=str,default=None,help="Output filename. Defaults to the name of the last input PCAP file, changing the extension by SVG.")
+    parser.add_argument("--labels",type=str,default=[],nargs='*',help="Labels for the traces. As many as given traces. By default, the labels will be the trace name without the common prefix.")
     args = parser.parse_args()
+
+    if args.labels:
+        if len(args.labels) != len(args.filename):
+            print("ERROR: You must be as many labels as filenames, or no labels")
+            sys.exit(1)
 
     #Manipulate filenames to have meaning full display names
     common = os.path.commonprefix(args.filename)
@@ -20,10 +26,13 @@ def main():
         common = os.path.commonpath(args.filename)
 
     chart = pygal.XY(stroke=True, interpolate='hermite', y_title="Bandwidth (Gbits/s)", x_title="Time (s)")
-    for filename in args.filename:
+    for ifile,filename in enumerate(args.filename):
         trace = PcapReader(filename)
 
-        cname = filename[len(common):].strip(os.path.sep)
+        if args.labels:
+            cname = args.labels[ifile]
+        else:
+            cname = filename[len(common):].strip(os.path.sep)
         print("Processing %s..." % cname)
 
         npackets = 0
@@ -35,11 +44,10 @@ def main():
 
         bw = []
 
-        with tqdm(total=os.stat(filename).st_size, desc="Reading trace...", bar_format="{l_bar}{bar} [ time left: {remaining} ]", dynamic_ncols=True) as pbar:
+        with tqdm(total=os.stat(filename).st_size if not args.stop else args.stop, desc="Reading trace...", bar_format="{l_bar}{bar} [ time left: {remaining} ]", dynamic_ncols=True) as pbar:
           for packet in trace:
               try:
                 pos = trace.f.tell()
-                pbar.update(pos - last)
                 last = pos
                 npackets += 1
 
@@ -51,7 +59,13 @@ def main():
                     first_time = ptime
                     last_time = ptime
 
-                if args.stop and ptime - first_time > args.stop:
+                elapsed = ptime - first_time
+                pbar.n = pos if not args.stop else elapsed
+
+                if npackets % 1000 == 1:
+                    pbar.refresh()
+
+                if args.stop and elapsed > args.stop:
                     break
 
                 if ptime - last_time > args.interval:
