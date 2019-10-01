@@ -2,7 +2,7 @@
 A simple python script to plot the bandwidth of some huge traces
 
 # example
-![example plot](https://github.com/tbarbette/pytracestats/raw/master/bw_rxtx.svg)
+![example plot](./bw_rxtx.svg)
 
 # usage
 ```
